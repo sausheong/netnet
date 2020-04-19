@@ -187,7 +187,7 @@ func parseCsv(file string) (clients []Client) {
 // Parsing the OUI from http://standards-oui.ieee.org/oui.txt
 // OUI is organizational unique identifier https://en.wikipedia.org/wiki/Organizationally_unique_identifier
 func parseOui() (oui map[string]string) {
-	file, err := os.Open("oui.txt")
+	file, err := os.Open(*dir + "/public/oui.txt")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -208,7 +208,7 @@ func parseOui() (oui map[string]string) {
 // Parsing the CID from http://standards-oui.ieee.org/cid/cid.txt
 // CID is company ID https://standards.ieee.org/products-services/regauth/cid/index.html
 func parseCid() (cid map[string]string) {
-	file, err := os.Open("cid.txt")
+	file, err := os.Open(*dir + "/public/cid.txt")
 	if err != nil {
 		log.Fatal(err)
 	}
