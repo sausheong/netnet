@@ -18,25 +18,12 @@ import (
 	"time"
 )
 
-// Client represents the clients found
-type Client struct {
-	MAC          string    `json:"mac"`
-	FirstSeen    time.Time `json:"first_seen"`
-	LastSeen     time.Time `json:"last_seen"`
-	Power        int       `json:"power"`
-	Packets      int       `json:"packets"`
-	BSSID        string    `json:"bssid"`
-	Probes       string    `json:"probes"`
-	Organization string    `json:"organization"`
-}
-
 var dir *string // directory where the public directory is in
 var port *int
 var csvFile *string
 var clientsFound []Client
 
 func init() {
-
 	d, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
 		log.Fatal(err)
@@ -50,6 +37,28 @@ func init() {
 func main() {
 	go getData()
 	serve()
+}
+
+// Client represents the clients found
+type Client struct {
+	MAC          string    `json:"mac"`
+	FirstSeen    time.Time `json:"first_seen"`
+	LastSeen     time.Time `json:"last_seen"`
+	Power        int       `json:"power"`
+	Packets      int       `json:"packets"`
+	BSSID        string    `json:"bssid"`
+	Probes       string    `json:"probes"`
+	Organization string    `json:"organization"`
+}
+
+func filterByLastSeen(clients []Client, mins int) (results []Client) {
+	for _, client := range clients {
+		t := time.Now().Add(-1 * time.Duration(mins) * time.Minute)
+		if t.Before(client.LastSeen) {
+			results = append(results, client)
+		}
+	}
+	return
 }
 
 func getData() {
@@ -81,7 +90,16 @@ func index(w http.ResponseWriter, r *http.Request) {
 
 // index for web server
 func clients(w http.ResponseWriter, r *http.Request) {
-	str, err := json.MarshalIndent(clientsFound, "", "  ")
+	lastParam := r.URL.Query().Get("last")
+	if lastParam == "" {
+		lastParam = "60"
+	}
+	last, err := strconv.Atoi(lastParam)
+	if err != nil {
+		log.Fatal(err)
+	}
+	filteredClients := filterByLastSeen(clientsFound, last)
+	str, err := json.MarshalIndent(filteredClients, "", "  ")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -126,7 +144,7 @@ func parseCsv(file string) (clients []Client) {
 	// set to dynamic number of columns
 	r.FieldsPerRecord = -1
 	timeParseLayout := "2006-01-02 15:04:05"
-
+	local := time.Now().Local().Location()
 	ouidb := parseOui()
 	ciddb := parseCid()
 
@@ -137,6 +155,7 @@ func parseCsv(file string) (clients []Client) {
 	// CLIENTS
 
 	// Iterate through the client records
+
 	for {
 		// Read each record from csv
 		record, err := r.Read()
@@ -146,8 +165,9 @@ func parseCsv(file string) (clients []Client) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		firstSeen, err := time.Parse(timeParseLayout, strings.TrimSpace(record[1]))
-		lastSeen, err := time.Parse(timeParseLayout, strings.TrimSpace(record[2]))
+
+		firstSeen, err := time.ParseInLocation(timeParseLayout, strings.TrimSpace(record[1]), local)
+		lastSeen, err := time.ParseInLocation(timeParseLayout, strings.TrimSpace(record[2]), local)
 		if err != nil {
 			fmt.Println("Cannot parse dates:", err)
 		}
