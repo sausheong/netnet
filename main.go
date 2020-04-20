@@ -162,20 +162,19 @@ func parseCsv(file string) (clients []Client) {
 		if err == io.EOF {
 			break
 		}
-		if err != nil {
-			log.Fatal(err)
+		check(err, "Cannot parse airodump-ng CSV file:")
+		if len(record) < 6 {
+			fmt.Println("Not enough columns:", record)
+			continue
 		}
-
 		firstSeen, err := time.ParseInLocation(timeParseLayout, strings.TrimSpace(record[1]), local)
+		check(err, "Cannot parse first seen date:")
 		lastSeen, err := time.ParseInLocation(timeParseLayout, strings.TrimSpace(record[2]), local)
-		if err != nil {
-			fmt.Println("Cannot parse dates:", err)
-		}
+		check(err, "Cannot parse last seen date:")
 		power, err := strconv.Atoi(strings.TrimSpace(record[3]))
+		check(err, "Cannot parse power value:")
 		packets, err := strconv.Atoi(strings.TrimSpace(record[4]))
-		if err != nil {
-			fmt.Println("Cannot parse values:", err)
-		}
+		check(err, "Cannot parse packets value:")
 
 		c := Client{
 			MAC:       strings.ReplaceAll(record[0], ":", "-"),
@@ -244,4 +243,10 @@ func parseCid() (cid map[string]string) {
 		}
 	}
 	return
+}
+
+func check(err error, msg string) {
+	if err != nil {
+		fmt.Println(msg, err)
+	}
 }
