@@ -163,7 +163,7 @@ func parseCsv(file string) (clients []Client) {
 			break
 		}
 		check(err, "Cannot parse airodump-ng CSV file:")
-		if len(record) < 6 {
+		if len(record) < 7 {
 			fmt.Println("Not enough columns:", record)
 			continue
 		}
