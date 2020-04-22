@@ -22,6 +22,7 @@ var dir *string // directory where the public directory is in
 var port *int
 var csvFile *string
 var clientsFound []Client
+var apsFound []AccessPoint
 
 func init() {
 	d, err := filepath.Abs(filepath.Dir(os.Args[0]))
@@ -37,6 +38,19 @@ func init() {
 func main() {
 	go getData()
 	serve()
+}
+
+// AccessPoint represents the access points found
+type AccessPoint struct {
+	MAC            string    `json:"mac"`
+	FirstSeen      time.Time `json:"first_seen"`
+	LastSeen       time.Time `json:"last_seen"`
+	Channel        int       `json:"channel"`
+	Speed          string    `json:"speed"`
+	Privacy        string    `json:"privacy"`
+	Authentication string    `json:"authentication"`
+	Power          int       `json:"power"`
+	Name           string    `json:"name"`
 }
 
 // Client represents the clients found
@@ -63,7 +77,7 @@ func filterByLastSeen(clients []Client, mins int) (results []Client) {
 
 func getData() {
 	for {
-		clientsFound = parseCsv(*csvFile)
+		apsFound, clientsFound = parseCsv(*csvFile)
 		time.Sleep(10 * time.Second)
 	}
 }
@@ -73,6 +87,7 @@ func serve() {
 	mux.Handle("/public/", http.StripPrefix("/public/", http.FileServer(http.Dir(*dir+"/public"))))
 	mux.HandleFunc("/", index)
 	mux.HandleFunc("/clients", clients)
+	mux.HandleFunc("/aps", accessPoints)
 	server := &http.Server{
 		Addr:    "0.0.0.0:" + strconv.Itoa(*port),
 		Handler: mux,
@@ -96,10 +111,21 @@ func clients(w http.ResponseWriter, r *http.Request) {
 	}
 	last, err := strconv.Atoi(lastParam)
 	if err != nil {
-		log.Fatal(err)
+		t, _ := template.ParseFiles(*dir + "/public/error.html")
+		t.Execute(w, err)
 	}
 	filteredClients := filterByLastSeen(clientsFound, last)
 	str, err := json.MarshalIndent(filteredClients, "", "  ")
+	if err != nil {
+		t, _ := template.ParseFiles(*dir + "/public/error.html")
+		t.Execute(w, err)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(str))
+}
+
+func accessPoints(w http.ResponseWriter, r *http.Request) {
+	str, err := json.MarshalIndent(apsFound, "", "  ")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -130,29 +156,74 @@ func isLocalMAC(MAC string) bool {
 }
 
 // parsing the csv dump from airodump-ng
-func parseCsv(file string) (clients []Client) {
+func parseCsv(file string) (accessPoints []AccessPoint, clients []Client) {
 	content, err := ioutil.ReadFile(file)
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	s := string(content)
 	csvdata := strings.Split(s, "Station MAC, First time seen, Last time seen, Power, # packets, BSSID, Probed ESSIDs")
+	accessPoints = getAPData(csvdata[0])
+	clients = getClientsData(csvdata[1])
+	return
+}
 
-	// Parse the file
-	r := csv.NewReader(strings.NewReader(csvdata[1]))
-	// set to dynamic number of columns
-	r.FieldsPerRecord = -1
+func getAPData(data string) (aps []AccessPoint) {
 	timeParseLayout := "2006-01-02 15:04:05"
 	local := time.Now().Local().Location()
+	r := csv.NewReader(strings.NewReader(data))
+	// set to dynamic number of columns
+	r.FieldsPerRecord = -1
+	r.TrimLeadingSpace = true
+	i := 0
+	for {
+		// Read each record from csv
+		record, err := r.Read()
+		if err == io.EOF {
+			break
+		}
+		check(err, "Cannot parse airodump-ng CSV file (access points):")
+		if i != 0 {
+			if len(record) < 9 {
+				fmt.Println("Not enough columns for access points:", record)
+				continue
+			}
+			firstSeen, err := time.ParseInLocation(timeParseLayout, strings.TrimSpace(record[1]), local)
+			check(err, "Cannot parse first seen date:")
+			lastSeen, err := time.ParseInLocation(timeParseLayout, strings.TrimSpace(record[2]), local)
+			check(err, "Cannot parse last seen date:")
+			channel, err := strconv.Atoi(strings.TrimSpace(record[3]))
+			check(err, "Cannot parse channel value:")
+			power, err := strconv.Atoi(strings.TrimSpace(record[8]))
+			check(err, "Cannot parse power value:")
+
+			ap := AccessPoint{
+				MAC:            strings.ReplaceAll(record[0], ":", "-"),
+				FirstSeen:      firstSeen,
+				LastSeen:       lastSeen,
+				Channel:        channel,
+				Speed:          record[4],
+				Privacy:        record[5],
+				Authentication: record[7],
+				Power:          power,
+				Name:           record[13],
+			}
+			aps = append(aps, ap)
+		}
+		i++
+	}
+	return
+}
+
+// create clients out of the CSV data
+func getClientsData(data string) (clients []Client) {
+	timeParseLayout := "2006-01-02 15:04:05"
+	local := time.Now().Local().Location()
+	r := csv.NewReader(strings.NewReader(data))
+	r.FieldsPerRecord = -1
+	r.TrimLeadingSpace = true
 	ouidb := parseOui()
 	ciddb := parseCid()
-
-	// ACCESS POINTS
-
-	// TO-DO
-
-	// CLIENTS
 
 	// Iterate through the client records
 
@@ -162,9 +233,9 @@ func parseCsv(file string) (clients []Client) {
 		if err == io.EOF {
 			break
 		}
-		check(err, "Cannot parse airodump-ng CSV file:")
+		check(err, "Cannot parse airodump-ng CSV file (clients):")
 		if len(record) < 7 {
-			fmt.Println("Not enough columns:", record)
+			fmt.Println("Not enough columns for clients:", record)
 			continue
 		}
 		firstSeen, err := time.ParseInLocation(timeParseLayout, strings.TrimSpace(record[1]), local)
