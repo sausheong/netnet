@@ -77,7 +77,7 @@ func filterByLastSeen(clients []Client, mins int) (results []Client) {
 
 func getData() {
 	for {
-		apsFound, clientsFound = parseCsv(*csvFile)
+		apsFound, clientsFound = parseAirodumpCsv(*csvFile)
 		time.Sleep(10 * time.Second)
 	}
 }
@@ -156,7 +156,7 @@ func isLocalMAC(MAC string) bool {
 }
 
 // parsing the csv dump from airodump-ng
-func parseCsv(file string) (accessPoints []AccessPoint, clients []Client) {
+func parseAirodumpCsv(file string) (accessPoints []AccessPoint, clients []Client) {
 	content, err := ioutil.ReadFile(file)
 	if err != nil {
 		log.Fatal(err)
