@@ -24,6 +24,9 @@ var csvFile *string
 var clientsFound []Client
 var apsFound []AccessPoint
 
+var ouidb map[string]string
+var ciddb map[string]string
+
 func init() {
 	d, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
@@ -32,6 +35,8 @@ func init() {
 	dir = flag.String("dir", d, "directory where the public directory is in")
 	port = flag.Int("p", 12121, "the port where the server starts")
 	csvFile = flag.String("f", "dump-01.csv", "airodump-ng csv file to parse")
+	ouidb = parseOui()
+	ciddb = parseCid()
 	flag.Parse()
 }
 
@@ -184,7 +189,7 @@ func getAPData(data string) (aps []AccessPoint) {
 		}
 		check(err, "Cannot parse airodump-ng CSV file (access points):")
 		if i != 0 {
-			if len(record) < 9 {
+			if len(record) < 14 {
 				fmt.Println("Not enough columns for access points:", record)
 				continue
 			}
@@ -222,11 +227,8 @@ func getClientsData(data string) (clients []Client) {
 	r := csv.NewReader(strings.NewReader(data))
 	r.FieldsPerRecord = -1
 	r.TrimLeadingSpace = true
-	ouidb := parseOui()
-	ciddb := parseCid()
 
 	// Iterate through the client records
-
 	for {
 		// Read each record from csv
 		record, err := r.Read()
