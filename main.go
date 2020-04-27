@@ -152,7 +152,7 @@ func accessPoints(w http.ResponseWriter, r *http.Request) {
 func isLocalMAC(MAC string) bool {
 	first, err := strconv.ParseInt(MAC[:2], 16, 32)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println("Cannot parse U/L bit:", err)
 	}
 	if (first>>1)&1 == 1 {
 		return true
@@ -164,7 +164,8 @@ func isLocalMAC(MAC string) bool {
 func parseAirodumpCsv(file string) (accessPoints []AccessPoint, clients []Client) {
 	content, err := ioutil.ReadFile(file)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println("File not found:", err)
+		return
 	}
 	s := string(content)
 	csvdata := strings.Split(s, "Station MAC, First time seen, Last time seen, Power, # packets, BSSID, Probed ESSIDs")
@@ -281,7 +282,8 @@ func getClientsData(data string) (clients []Client) {
 func parseOui() (oui map[string]string) {
 	file, err := os.Open(*dir + "/public/oui.txt")
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println("Oui.txt file not found:", err)
+		return
 	}
 	defer file.Close()
 	oui = make(map[string]string)
@@ -302,7 +304,8 @@ func parseOui() (oui map[string]string) {
 func parseCid() (cid map[string]string) {
 	file, err := os.Open(*dir + "/public/cid.txt")
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println("Cid.txt file not found:", err)
+		return
 	}
 	defer file.Close()
 	cid = make(map[string]string)
